@@ -12,7 +12,7 @@ const UserSchema = new mongoose.Schema({
 });
 
 // password bcrypting or salting
-UserSchema.pre("save", async (next) => {
+UserSchema.pre("save", async function (next) {
   if (!this.isModified("password")) {
     return next();
   }
@@ -26,7 +26,7 @@ UserSchema.pre("save", async (next) => {
 });
 
 //Instance methode to compare password for auth check
-UserSchema.methods.comparePassword = async (candidatePassword) => {
+UserSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 const UserModel = mongoose.model("user", UserSchema);

@@ -12,12 +12,11 @@ const app = express();
 
 mongoose
   .connect(MONGO_URL)
-  .then(() => console.log("MangoDB connected sucessfully. "))
+  .then(() => console.log("MongoDB connected sucessfully. "))
   .catch((err) => console.error("MongoDB connection error : ", err));
 
-mongoose.connect(MONGO_URL);
-app.use(express.json())
-app.use(express.urlencoded({extended:true}))
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 
 // user section
