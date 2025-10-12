@@ -107,7 +107,7 @@ export const updateUser = async (req, res) => {
 
 export const viewUser = async (req, res) => {
   try {
-    const { email } = req.body; // 🔧 Get email from request body
+    const email = req.user.email; // 🔧 Get email from token
 
     if (!email) {
       return res.status(400).json({ message: "Email is required" });
@@ -116,7 +116,7 @@ export const viewUser = async (req, res) => {
     const user = await UserModel.findOne({ email });
 
     if (!user) {
-      console.log("Failed to find user");
+      console.log("Failed to find user from the valid token ");
       return res.status(404).json({ message: "User not found" });
     }
 
