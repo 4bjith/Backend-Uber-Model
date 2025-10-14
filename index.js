@@ -2,6 +2,7 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
+import path from"path";
 
 import AuthRoute from "./Routes/User.js";
 
@@ -21,6 +22,6 @@ app.use(cors());
 
 // user section
 app.use(AuthRoute);
-
+app.use("/uploads",express.static(path.join(process.cwd(), "uploads")))
 //Run server at port
 app.listen(PORT, () => console.log(`Running server on port ${PORT}`));

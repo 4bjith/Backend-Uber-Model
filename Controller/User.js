@@ -104,52 +104,34 @@ export const Register = async (req, res) => {
 // };
 export const updateUser = async (req, res) => {
   try {
-    // extract token from headers
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) {
-      return res
-        .status(401)
-        .json({ status: "error", message: "Authorization token missing" });
-    }
-    // verify and decode token
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (err) {
-      return res
-        .status(401)
-        .json({ status: "error", message: "Invalid or expired token" });
-    }
-
-    const email = decoded.email;
+    const email = req.user.email; // from LoginCheck middleware
     if (!email) {
       return res
         .status(400)
-        .json({ status: "error", message: "Token missing email field" });
+        .json({ status: "error", message: "Missing email in token" });
     }
-    // Extract updeate fields from request body
-    const { name, mobile, profileImg, password } = req.body;
 
-    const updateFields = {};
-    if (name) updateFields.name = name;
-    if (mobile) updateFields.mobile = mobile;
-    if (profileImg) updateFields.profileImg = profileImg;
-    if (password) updateFields.password = password;
-
-    // find user by email
     const user = await UserModel.findOne({ email });
     if (!user) {
       return res
         .status(404)
-        .json({ status: "error", message: "User not found " });
+        .json({ status: "error", message: "User not found" });
     }
 
-    // updating  the fields
-    Object.assign(user, updateFields);
+    // update text fields
+    const { name, mobile, password } = req.body;
+    
+    if (name) user.name = name;
+    if (mobile) user.mobile = mobile;
+    if (password) user.password = password;
 
-    // save usser
+    // handle uploaded image
+    if (req.file) {
+      user.profileImg = `/uploads/${req.file.filename}`;
+    }
+
     const updatedUser = await user.save();
-    // respond with updated user data
+
     res.status(200).json({
       status: "success",
       message: "User updated successfully",
@@ -162,13 +144,8 @@ export const updateUser = async (req, res) => {
       },
     });
   } catch (error) {
-    if (error.name === "ValidationError") {
-      return res.status(400).json({ status: "error", message: error.message });
-    }
-    console.error("Error while updating user:", error);
-    res
-      .status(500)
-      .json({ status: "error", message: "Server error during update" });
+    console.error("Error while updating user:", error.message, error.stack);
+    res.status(500).json({ status: "error", message: error.message });
   }
 };
 
