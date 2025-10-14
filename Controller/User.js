@@ -55,31 +55,101 @@ export const Register = async (req, res) => {
 
 // api for user update
 
+// export const updateUser = async (req, res) => {
+//   const userId = req.params.id;
+//   const { name, mobile, profileImg, password } = req.body;
+
+//   // dummy obj container
+//   const updateFields = {};
+
+//   if (name) updateFields.name = name;
+//   if (mobile) updateFields.mobile = mobile;
+//   if (profileImg) updateFields.profileImg = profileImg;
+
+//   try {
+//     const user = await UserModel.findById(userId);
+//     if (!user) {
+//       return res
+//         .status(404)
+//         .json({ status: "error", message: "user not found" });
+//     }
+
+//     if (password) {
+//       user.password = password;
+//     }
+//     Object.assign(user, updateFields);
+
+//     const updatedUser = await user.save();
+//     res.status(200).json({
+//       status: "success",
+//       message: "User updated successfully",
+//       user: {
+//         _id: updatedUser._id,
+//         name: updatedUser.name,
+//         email: updatedUser.email,
+//         mobile: updatedUser.mobile,
+//         profileImg: updatedUser.profileImg,
+//       },
+//     });
+//   } catch (error) {
+//     if (error.name === "ValidationError") {
+//       return res.status(400).json({ status: "error", message: error.message });
+//     }
+
+//     console.error("Error while updating user:", error);
+//     res
+//       .status(500)
+//       .json({ status: "error", message: "Server error during update" });
+//   }
+// };
 export const updateUser = async (req, res) => {
-  const userId = req.params.id;
-  const { name, mobile, profileImg, password } = req.body;
-
-  // dummy obj container
-  const updateFields = {};
-
-  if (name) updateFields.name = name;
-  if (mobile) updateFields.mobile = mobile;
-  if (profileImg) updateFields.profileImg = profileImg;
-
   try {
-    const user = await UserModel.findById(userId);
+    // extract token from headers
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res
+        .status(401)
+        .json({ status: "error", message: "Authorization token missing" });
+    }
+    // verify and decode token
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      return res
+        .status(401)
+        .json({ status: "error", message: "Invalid or expired token" });
+    }
+
+    const email = decoded.email;
+    if (!email) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Token missing email field" });
+    }
+    // Extract updeate fields from request body
+    const { name, mobile, profileImg, password } = req.body;
+
+    const updateFields = {};
+    if (name) updateFields.name = name;
+    if (mobile) updateFields.mobile = mobile;
+    if (profileImg) updateFields.profileImg = profileImg;
+    if (password) updateFields.password = password;
+
+    // find user by email
+    const user = await UserModel.findOne({ email });
     if (!user) {
       return res
         .status(404)
-        .json({ status: "error", message: "user not found" });
+        .json({ status: "error", message: "User not found " });
     }
 
-    if (password) {
-      user.password = password;
-    }
+    // updating  the fields
     Object.assign(user, updateFields);
 
+    // save usser
     const updatedUser = await user.save();
+    // respond with updated user data
     res.status(200).json({
       status: "success",
       message: "User updated successfully",
@@ -95,7 +165,6 @@ export const updateUser = async (req, res) => {
     if (error.name === "ValidationError") {
       return res.status(400).json({ status: "error", message: error.message });
     }
-
     console.error("Error while updating user:", error);
     res
       .status(500)
