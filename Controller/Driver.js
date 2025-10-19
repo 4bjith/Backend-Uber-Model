@@ -1,4 +1,3 @@
-
 import DriverModel from "../Model/Driver.js";
 import jwt from "jsonwebtoken";
 
@@ -18,11 +17,16 @@ export const SignIn = async (req, res) => {
       // if compaireing successed then send token to frontent
       if (isMatch) {
         const token = jwt.sign({ email: driver.email }, JWT_SECRET, {
-          expiresIn: "12hr",
+          expiresIn: "12h",
         });
         res.json({
           status: "Login done",
           token: token,
+          driver: {
+            name: driver.name,
+            email: driver.email,
+            mobile: driver.mobile,
+          },
         });
       } else {
         res.status(404).send("Wrong password");
@@ -64,7 +68,57 @@ export const SignUp = async (req, res) => {
       driverId: newDriver._id,
     });
   } catch (error) {
-    console.error("Error while registring :", error);
-    res.status(500).json({ status: "error", message: "server error" });
+    console.error("Error while updating Driver:", error.message);
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+// api function to update driver
+
+export const updateDriver = async (req, res) => {
+  try {
+    const email = req.user?.email;
+    if (!email) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Missing email in token " });
+    }
+
+    const driver = await DriverModel.findOne({ email });
+    if (!driver) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "Driver not found" });
+    }
+
+    const { name, password, mobile, vehicle, licence } = req.body;
+
+    if (name) driver.name = name;
+    if (password) driver.password = password;
+    if (mobile) driver.mobile = mobile;
+    if (vehicle) driver.vehicle = vehicle;
+    if (licence) driver.licence = licence;
+
+    if (req.file) {
+      driver.profileImg = `/uploads/${req.file.filename}`;
+    }
+
+    const updatedDriver = await driver.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Driver updated successfully",
+      driver: {
+        _id: updatedDriver._id,
+        name: updatedDriver.name,
+        email: updatedDriver.email,
+        mobile: updatedDriver.mobile,
+        vehicle: updatedDriver.vehicle,
+        licence: updatedDriver.licence,
+      },
+    });
+  } catch {
+    console.error("Error while updating Driver:", error.message, error.stack);
+    res.status(500).json({ status: "error", message: error.message });
   }
 };
