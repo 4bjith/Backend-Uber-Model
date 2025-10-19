@@ -43,7 +43,8 @@ export const SignIn = async (req, res) => {
 // api function to register or sign up
 
 export const SignUp = async (req, res) => {
-  const { name, email, password, mobile, vehicle, licence } = req.body;
+  const { name, email, password, mobile, vehicleName, vehicle, licence } =
+    req.body;
   try {
     // checking if the user exist in db
     const existing = await DriverModel.findOne({ email });
@@ -59,6 +60,7 @@ export const SignUp = async (req, res) => {
       email,
       password,
       mobile,
+      vehicleName,
       vehicle,
       licence,
     });
@@ -91,11 +93,12 @@ export const updateDriver = async (req, res) => {
         .json({ status: "error", message: "Driver not found" });
     }
 
-    const { name, password, mobile, vehicle, licence } = req.body;
+    const { name, password, mobile, vehicleName, vehicle, licence } = req.body;
 
     if (name) driver.name = name;
     if (password) driver.password = password;
     if (mobile) driver.mobile = mobile;
+    if (vehicleName) driver.vehicleName = vehicleName;
     if (vehicle) driver.vehicle = vehicle;
     if (licence) driver.licence = licence;
 
@@ -113,6 +116,7 @@ export const updateDriver = async (req, res) => {
         name: updatedDriver.name,
         email: updatedDriver.email,
         mobile: updatedDriver.mobile,
+        vehicleName: updatedDriver.vehicleName,
         vehicle: updatedDriver.vehicle,
         licence: updatedDriver.licence,
       },
@@ -120,5 +124,31 @@ export const updateDriver = async (req, res) => {
   } catch {
     console.error("Error while updating Driver:", error.message, error.stack);
     res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+export const getDriver = async (req, res) => {
+  try {
+    const email = req.user?.email;
+    if (!email) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Missing email in token" });
+    }
+
+    const driverData = await DriverModel.findOne({ email });
+    if (!driverData) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "Failed to find driver" });
+    }
+
+    res.status(200).json({
+      status: "success",
+      driver: driverData,
+    });
+  } catch (error) {
+    console.error("Error in getDriver:", error);
+    res.status(500).send("error", error.message);
   }
 };
