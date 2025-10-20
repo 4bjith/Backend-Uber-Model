@@ -3,7 +3,7 @@ import UserModel from "../Model/User.js";
 import jwt from "jsonwebtoken";
 
 export const Login = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, location } = req.body;
   try {
     const usr = await UserModel.findOne({ email });
 
@@ -11,6 +11,22 @@ export const Login = async (req, res) => {
       const isMatch = await usr.comparePassword(password);
 
       if (isMatch) {
+        //✅ Update location if provided and valid
+        if (
+          location &&
+          location.type === "Point" &&
+          Array.isArray(location.coordinates) &&
+          location.coordinates.length === 2
+        ) {
+          usr.location = {
+            type: "Point",
+            coordinates: location.coordinates,
+          };
+          usr.markModified("location");
+          await usr.save(); //  Save updated location
+          console.log("Saved user location:", usr.location);
+        }
+
         const token = jwt.sign({ email: usr.email }, "qwerty", {
           expiresIn: "4h",
         });
@@ -119,11 +135,31 @@ export const updateUser = async (req, res) => {
     }
 
     // update text fields
-    const { name, mobile, password } = req.body;
-    
+    const { name, mobile, password, location } = req.body;
+
     if (name) user.name = name;
     if (mobile) user.mobile = mobile;
     if (password) user.password = password;
+
+    // ✅ update location if provided and valid
+    if (
+      location &&
+      location.type === "Point" &&
+      Array.isArray(location.coordinates)
+    ) {
+      if (location.coordinates.length === 2) {
+        user.location = {
+          type: "Point",
+          coordinates: location.coordinates, // [lng, lat]
+        };
+      } else {
+        return res.status(400).json({
+          status: "error",
+          message:
+            "Location coordinate must be an array of [longitude, latitude]",
+        });
+      }
+    }
 
     // handle uploaded image
     if (req.file) {

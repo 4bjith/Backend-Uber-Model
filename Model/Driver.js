@@ -11,6 +11,7 @@ const DriverSchema = new mongoose.Schema({
   vehicle: { type: String, required: true },
   licence: { type: String, required: true },
   profileImg: { type: String },
+  role: { type: String, default: "driver" },
 });
 
 // Pre-save hook to hash password
