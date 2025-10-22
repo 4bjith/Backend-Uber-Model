@@ -1,10 +1,57 @@
 import DriverModel from "../Model/Driver.js";
 import jwt from "jsonwebtoken";
 
+// api function to update location
+export const UpdatLocation = async (req, res) => {
+  const { location } = req.body;
+  try {
+    const email = req.user?.email;
+
+    if (!email) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Missing email in token" });
+    }
+    // find driver using email
+    const driver = await DriverModel.findOne({ email });
+    if (!driver) {
+      return res.status(400).json({ message: "Cant find the driver" });
+    }
+
+    if (
+      location &&
+      location.type === "Point" &&
+      Array.isArray(location.coordinates)
+    ) {
+      if (location.coordinates.length === 2) {
+        driver.location = {
+          type: "Point",
+          coordinates: location.coordinates, // [lng, lat]
+        };
+        await driver.save();
+
+        return res.status(200).json({
+          status: "success",
+          message: "Location updated successfully",
+        });
+      } else {
+        return res.status(400).json({
+          status: "error",
+          message:
+            "Location coordinate must be an array of [longitude, latitude]",
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error while updating location:", error.message, error.stack);
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
 // api function to login or sign in
 export const SignIn = async (req, res) => {
   // taking email and password from req body
-  const { email, password } = req.body;
+  const { email, password, location } = req.body;
   const JWT_SECRET = process.env.JWT_SECRET;
   try {
     // finding driver data in database using email
@@ -16,6 +63,21 @@ export const SignIn = async (req, res) => {
 
       // if compaireing successed then send token to frontent
       if (isMatch) {
+        // save location when login
+        // if (
+        //   location &&
+        //   location.type === "Point" &&
+        //   Array.isArray(location.coordinates) &&
+        //   location.coordinates.length === 2
+        // ) {
+        //   driver.location = {
+        //     type: "Point",
+        //     coordinates: location.coordinates,
+        //   };
+        //   driver.markModified("location");
+        //   await driver.save();
+        // }
+
         const token = jwt.sign({ email: driver.email }, JWT_SECRET, {
           expiresIn: "12h",
         });

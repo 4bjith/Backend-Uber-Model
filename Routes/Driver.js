@@ -4,6 +4,7 @@ import {
   SignIn,
   SignUp,
   updateDriver,
+  UpdatLocation,
 } from "../Controller/Driver.js";
 import { LoginCheck } from "../Middlewere/Auth.js";
 import { upload } from "../Storage/multerStorage.js";
@@ -20,5 +21,6 @@ router.put(
   updateDriver
 );
 router.get("/driver", LoginCheck, getDriver);
+router.put("/currentlocation", LoginCheck, UpdatLocation);
 
 export default router;

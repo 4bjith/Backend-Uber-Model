@@ -12,6 +12,17 @@ const DriverSchema = new mongoose.Schema({
   licence: { type: String, required: true },
   profileImg: { type: String },
   role: { type: String, default: "driver" },
+  location: {
+    type: {
+      type: String,
+      enum: ["Point"],
+      default: "Point",
+    },
+    coordinates: {
+      type: [Number],
+      default: [0, 0],
+    },
+  },
 });
 
 // Pre-save hook to hash password
