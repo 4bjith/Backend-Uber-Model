@@ -2,6 +2,52 @@ import express from "express";
 import UserModel from "../Model/User.js";
 import jwt from "jsonwebtoken";
 
+// update location
+export const UpdateLocation = async (req, res) => {
+  const { location } = req.body;
+  try {
+    const email = req.user?.email;
+
+    if (!email) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Missing email in token" });
+    }
+    // find user using email
+    const usr = await UserModel.findOne({ email });
+    if (!usr) {
+      return res.status(400).json({ message: "Cant find user" });
+    }
+
+    if (
+      location &&
+      location.type === "Point" &&
+      Array.isArray(location.coordinates)
+    ) {
+      if (location.coordinates.length === 2) {
+        usr.location = {
+          type: "Point",
+          coordinates: location.coordinates, // [lan, lat]
+        };
+        await usr.save();
+
+        return res.status(200).json({
+          status: "success",
+          message: "Location updated sucessfully",
+        });
+      } else {
+        return res.status(404).json({
+          status: "error",
+          message: "Location coordinates must be an array",
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error while updating location:", error.message, error.stack);
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
 export const Login = async (req, res) => {
   const { email, password, location } = req.body;
   try {
