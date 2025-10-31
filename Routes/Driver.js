@@ -1,6 +1,7 @@
 import express from "express";
 import {
   getDriver,
+  nearby,
   SignIn,
   SignUp,
   updateDriver,
@@ -22,5 +23,6 @@ router.put(
 );
 router.get("/driver", LoginCheck, getDriver);
 router.put("/currentlocation", LoginCheck, UpdatLocation);
+router.get("/nearby",nearby);
 
 export default router;

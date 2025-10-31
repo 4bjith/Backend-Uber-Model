@@ -44,5 +44,7 @@ DriverSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
+DriverSchema.index({ location: "2dsphere" });
+
 const DriverModel = mongoose.model("driver", DriverSchema);
 export default DriverModel;

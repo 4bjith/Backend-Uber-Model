@@ -214,3 +214,38 @@ export const getDriver = async (req, res) => {
     res.status(500).send("error", error.message);
   }
 };
+
+// api function to find all drivers nearby
+export const nearby = async (req, res) => {
+  try {
+    const {lat,lng} = req.query
+    if (!lat || !lng) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Missing latitude or longitude" });
+    }
+    const longitude = parseFloat(lng);
+    const latitude = parseFloat(lat);
+
+    // find driver within 5km radius
+    const drivers = await DriverModel.find({
+      location: {
+        $near: {
+          $geometry: {
+            type: "Point",
+            coordinates: [longitude, latitude],
+          },
+          $maxDistance: 5000, // 5 km
+        },
+      },
+    });
+
+    res.status(200).json({
+      status: "success",
+       count: drivers.length, drivers
+    })
+  }catch(err){
+    console.error("Error in nearby:", err);
+    res.status(500).send("error", err.message);
+  }
+}

@@ -7,12 +7,14 @@ import http from "http";
 import { Server } from "socket.io";
 import AuthRoute from "./Routes/User.js";
 import DriverRoute from "./Routes/Driver.js";
+import DriverModel from "./Model/Driver.js";
 
 dotenv.config();
 
 const MONGO_URL = process.env.MONGO_URL || "mongodb://localhost:27017/testdb";
 const PORT = process.env.PORT || 8080;
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
+
+const allowedOrigins = ["http://localhost:5173", "http://localhost:5174"]; // Add more allowed origins as needed
 
 const app = express();
 const server = http.createServer(app);
@@ -20,7 +22,7 @@ const server = http.createServer(app);
 // ✅ Socket.IO setup
 const io = new Server(server, {
   cors: {
-    origin: CLIENT_URL,
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
   },
 });
@@ -34,11 +36,23 @@ mongoose
 // ✅ Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({ origin: CLIENT_URL }));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error("Not allowed by CORS"));
+      } // allow requests with no origin
+    },
+    credentials: true,
+  })
+);
 
 // ✅ Routes
-app.use( AuthRoute);
-app.use( DriverRoute);
+app.use(AuthRoute);
+app.use(DriverRoute);
 
 // ✅ Serve static uploads folder
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
@@ -52,10 +66,40 @@ io.on("connection", (socket) => {
   });
 
   // Receive driver location updates
-  socket.on("location:update", (coords) => {
-    console.log("🚗 Driver location:", coords);
-    // Broadcast to all connected clients
-    io.emit("driver:location", coords);
+  socket.on("driver:location:update", async(data) => {
+    try{
+      const {email,coordinates} = data;
+
+      if(!email || !coordinates){
+        console.warn("Invalid data received")
+        return;
+      }
+
+      // GeoJSON expects [lng, lat]
+      const {lat, lng} = coordinates;
+
+      // Update driver location in the database
+      const driver = await DriverModel.findOneAndUpdate(
+        {email},
+        {
+          $set: {
+            location: {
+              type: "Point",
+              coordinates: [lng, lat],
+            },
+          },
+        },
+        { new: true }
+      )
+      io.emit("driver:location", coordinates);
+      if (driver) {
+        console.log(`📍 Updated location for ${driver.email}:`, driver.location.coordinates);
+      } else {
+        console.warn(`⚠️ Driver not found for email: ${email}`);
+      }
+    }catch(err){
+      console.error("Error updating driver location:", err);
+    }
   });
 });
 
