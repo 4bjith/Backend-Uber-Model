@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
+import { Socket } from "socket.io";
 
 // Driver schema
 const DriverSchema = new mongoose.Schema({
@@ -12,6 +13,7 @@ const DriverSchema = new mongoose.Schema({
   licence: { type: String, required: true },
   profileImg: { type: String },
   role: { type: String, default: "driver" },
+  socketId: { type: String, default: null },
   location: {
     type: {
       type: String,

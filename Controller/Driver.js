@@ -218,7 +218,7 @@ export const getDriver = async (req, res) => {
 // api function to find all drivers nearby
 export const nearby = async (req, res) => {
   try {
-    const {lat,lng} = req.query
+    const { lat, lng } = req.query;
     if (!lat || !lng) {
       return res
         .status(400)
@@ -242,10 +242,16 @@ export const nearby = async (req, res) => {
 
     res.status(200).json({
       status: "success",
-       count: drivers.length, drivers
-    })
-  }catch(err){
+      count: drivers.length,
+      drivers,
+    });
+  } catch (err) {
     console.error("Error in nearby:", err);
     res.status(500).send("error", err.message);
   }
-}
+};
+
+
+
+
+// function to 

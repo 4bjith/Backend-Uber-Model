@@ -22,6 +22,8 @@ const RideSchema = new mongoose.Schema({
     enum: ["requested", "in_progress", "completed", "cancelled"],
     default: "requested",
   },
+  requestedAt: { type: Date, default: Date.now },
+  completedAt: { type: Date },
 });
 
 const RideModel = mongoose.model("ride", RideSchema);

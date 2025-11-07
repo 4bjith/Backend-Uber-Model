@@ -5,6 +5,7 @@ import {
   SignIn,
   SignUp,
   updateDriver,
+  updateRideStatus,
   UpdatLocation,
 } from "../Controller/Driver.js";
 import { LoginCheck } from "../Middlewere/Auth.js";
@@ -25,4 +26,5 @@ router.get("/driver", LoginCheck, getDriver);
 router.put("/currentlocation", LoginCheck, UpdatLocation);
 router.get("/nearby",nearby);
 
+router.post("/driver/acceptride", updateRideStatus);
 export default router;
