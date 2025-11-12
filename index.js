@@ -8,25 +8,18 @@ import { Server } from "socket.io";
 import AuthRoute from "./Routes/User.js";
 import DriverRoute from "./Routes/Driver.js";
 import DriverModel from "./Model/Driver.js";
-import RideRoute from "./Routes/Ride.js";
 
 dotenv.config();
 
 const MONGO_URL = process.env.MONGO_URL || "mongodb://localhost:27017/testdb";
 const PORT = process.env.PORT || 8080;
 
-const allowedOrigins = ["http://localhost:5173", "http://localhost:5174"]; // Add more allowed origins as needed
+const allowedOrigins = ["http://localhost:5173", "http://localhost:5174","http://localhost:5175"]; // Add more allowed origins as needed
 
 const app = express();
 const server = http.createServer(app);
 
-// ✅ Socket.IO setup
-const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ["GET", "POST"],
-  },
-});
+
 
 // ✅ MongoDB connection
 mongoose
@@ -51,10 +44,17 @@ app.use(
   })
 );
 
+// ✅ Socket.IO setup
+export const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+  },
+});
+
 // ✅ Routes
 app.use(AuthRoute);
 app.use(DriverRoute);
-app.use(RideRoute);
 
 // ✅ Serve static uploads folder
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
@@ -90,7 +90,7 @@ io.on("connection", (socket) => {
   // Receive driver location updates
   socket.on("driver:location:update", async (data) => {
     try {
-      const { email, coordinates, socketId } = data;
+      const { email, coordinates, socketid } = data;
 
       if (!email || !coordinates) {
         console.warn("Invalid data received");
@@ -105,7 +105,7 @@ io.on("connection", (socket) => {
         { email },
         {
           $set: {
-            socketId: socketId,
+            socketId: socketid,
             location: {
               type: "Point",
               coordinates: [lng, lat],

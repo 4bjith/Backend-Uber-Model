@@ -1,6 +1,8 @@
 import DriverModel from "../Model/Driver.js";
 import jwt from "jsonwebtoken";
-
+import UserModel from "../Model/User.js";
+import RideModel from "../Model/Ride.js";
+import { io } from "../index.js";
 // api function to update location
 export const UpdatLocation = async (req, res) => {
   const { location } = req.body;
@@ -252,6 +254,94 @@ export const nearby = async (req, res) => {
 };
 
 
+export const BookRide = async (req, res) => {
+  const driver = await DriverModel.findOne({ _id: req.body.driverId });
+  const passenger = await UserModel.findOne({ _id: req.body.userId });
+  const ride = await RideModel.create({
+    pickup: req.body.pickup,
+    dropoff: req.body.dropoff,
+    driver: driver._id,
+    date: req.body.date,
+    time: req.body.time,
+    passenger: passenger._id,
+  });
+  io.to(driver.socketId).emit("ride:alert", {
+    pickup: req.body.pickup,
+    dropoff: req.body.dropoff,
+    rideId: ride._id,
+    
+  });
+  res
+    .status(201)
+    .json({ status: "success", message: "Ride booked", rideId: ride._id });
+};
+
+// api function to update ride status
+export const updateRideStatus = async (req, res) => {
+  const { rideId, driverEmail } = req.body;
+  try {
+    // update ride status to 'accepted' and assign driver
+    const ride = await RideModel.findByIdAndUpdate(
+      rideId,
+      {
+        status: "accepted",
+        email: driverEmail,
+      },
+      { new: true }
+    );
+    if (!ride) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "Ride not found" });
+    }
+    io.emit("ride:status:update", { rideId, status: "accepted", driverEmail });
+    res.status(200).json({
+      status: "success",
+      message: "Ride status updated to accepted",
+      ride,
+    });
+  } catch (err) {
+    console.error("Error in updateRideStatus:", err);
+    res.status(500).send("error", err.message);
+  }
+};
 
 
-// function to 
+
+export const getRides = async (req, res) => {
+  try {
+    const { rideId } = req.body; // or req.query, depending on frontend
+    if (!rideId) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Ride ID is required" });
+    }
+
+    // Find ride by ID
+    const ride = await RideModel.findById(rideId);
+
+    if (!ride) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "Ride not found" });
+    }
+
+    if (ride.status === "accepted") {
+      return res.status(200).json({
+        status: "success",
+        message: "Ride accepted",
+        data: ride,
+      });
+    } else {
+      return res.status(200).json({
+        status: "pending",
+        message: "Ride not accepted yet",
+        data: ride,
+      });
+    }
+  } catch (error) {
+    console.error("Error in getRides:", error);
+    res.status(500).json({ status: "error", message: error.message });
+  }
+};
+

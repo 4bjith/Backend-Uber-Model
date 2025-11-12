@@ -1,6 +1,8 @@
 import express from "express";
 import {
+  BookRide,
   getDriver,
+  getRides,
   nearby,
   SignIn,
   SignUp,
@@ -27,4 +29,8 @@ router.put("/currentlocation", LoginCheck, UpdatLocation);
 router.get("/nearby",nearby);
 
 router.post("/driver/acceptride", updateRideStatus);
+router.post("/bookride", BookRide);
+
+router.get("/ride/status",getRides)
+
 export default router;

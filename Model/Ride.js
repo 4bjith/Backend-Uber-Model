@@ -13,10 +13,10 @@ const RideSchema = new mongoose.Schema({
   },
   pickup: { type: String, required: true },
   dropoff: { type: String, required: true },
-  price: { type: Number, required: true },
+  price: { type: Number },
   date: { type: Date, default: Date.now },
   time: { type: String, required: true },
-  otp: { type: String, required: true },
+  otp: { type: String },
   status: {
     type: String,
     enum: ["requested", "in_progress", "completed", "cancelled"],
