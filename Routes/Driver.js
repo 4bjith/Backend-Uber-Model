@@ -5,6 +5,7 @@ import {
   getRides,
   nearby,
   SignIn,
+  SignOut,
   SignUp,
   updateDriver,
   updateRideStatus,
@@ -32,5 +33,6 @@ router.post("/driver/acceptride", updateRideStatus);
 router.post("/bookride", BookRide);
 
 router.get("/ride/status",getRides)
+router.post("/driverlogout",LoginCheck,SignOut)
 
 export default router;

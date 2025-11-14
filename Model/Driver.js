@@ -14,6 +14,7 @@ const DriverSchema = new mongoose.Schema({
   profileImg: { type: String },
   role: { type: String, default: "driver" },
   socketId: { type: String, default: null },
+  status: {type: String, enum:["offline","online"], default: "offline"},
   location: {
     type: {
       type: String,

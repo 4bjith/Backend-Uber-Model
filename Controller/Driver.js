@@ -65,24 +65,14 @@ export const SignIn = async (req, res) => {
 
       // if compaireing successed then send token to frontent
       if (isMatch) {
-        // save location when login
-        // if (
-        //   location &&
-        //   location.type === "Point" &&
-        //   Array.isArray(location.coordinates) &&
-        //   location.coordinates.length === 2
-        // ) {
-        //   driver.location = {
-        //     type: "Point",
-        //     coordinates: location.coordinates,
-        //   };
-        //   driver.markModified("location");
-        //   await driver.save();
-        // }
+        // driver status online 
+        driver.status = "online"
+        await driver.save()
 
         const token = jwt.sign({ email: driver.email }, JWT_SECRET, {
           expiresIn: "12h",
         });
+
         res.json({
           status: "Login done",
           token: token,
@@ -103,6 +93,31 @@ export const SignIn = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
+
+// api function to signOut 
+export const SignOut = async (req,res) => {
+  try{
+    const email = req.user?.email;
+    if (!email) {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Missing email in token" });
+    }
+    const driver = await DriverModel.findOne({email});
+
+    if(!driver){
+      return res.status(401).json({status: "error",message: "Cant find the driver in db"})
+    }
+    driver.status = "offline";
+    await driver.save();
+
+  }catch{
+      console.error("Error in sining out ", error.message, error.stack);
+    res.status(500).json({ status: "error", message: error.message });
+  }
+}
+
+
 
 // api function to register or sign up
 
@@ -269,7 +284,7 @@ export const BookRide = async (req, res) => {
     pickup: req.body.pickup,
     dropoff: req.body.dropoff,
     rideId: ride._id,
-    
+
   });
   res
     .status(201)
