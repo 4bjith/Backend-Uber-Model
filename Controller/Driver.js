@@ -325,7 +325,7 @@ export const updateRideStatus = async (req, res) => {
 
 export const getRides = async (req, res) => {
   try {
-    const { rideId } = req.body; // or req.query, depending on frontend
+    const { rideId } = req.query; // or req.query, depending on frontend
     if (!rideId) {
       return res
         .status(400)
