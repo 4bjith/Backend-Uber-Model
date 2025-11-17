@@ -127,7 +127,14 @@ io.on("connection", (socket) => {
       console.error("Error updating driver location:", err);
     }
   });
+
+  socket.on("driver:location:ridepage", (data) => {
+    const { coordinates } = data;
+    io.emit("driver:location:currentride", coordinates);
+  });
 });
+
+
 
 // ✅ Start server (with Socket.IO)
 server.listen(PORT, () => {

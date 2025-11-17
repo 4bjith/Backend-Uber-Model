@@ -12,6 +12,28 @@ const RideSchema = new mongoose.Schema({
     required: true,
   },
   pickup: { type: String, required: true },
+  pickupCoordinates: {
+    type: {
+      type: String,
+      enum: ["Point"],
+      default: "Point",
+    },
+    coordinates: {
+      type: [Number],
+      default: [0, 0],
+    },
+  },
+  dropoffCoordinates: {
+    type: {
+      type: String,
+      enum: ["Point"],
+      default: "Point",
+    },
+    coordinates: {
+      type: [Number],
+      default: [0, 0],
+    },
+  },
   dropoff: { type: String, required: true },
   price: { type: Number },
   date: { type: Date, default: Date.now },
@@ -19,7 +41,7 @@ const RideSchema = new mongoose.Schema({
   otp: { type: String },
   status: {
     type: String,
-    enum: ["requested", "in_progress", "completed", "cancelled"],
+    enum: ["requested", "accepted", "in_progress", "completed", "cancelled"],
     default: "requested",
   },
   requestedAt: { type: Date, default: Date.now },

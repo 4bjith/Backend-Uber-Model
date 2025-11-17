@@ -272,12 +272,15 @@ export const nearby = async (req, res) => {
 export const BookRide = async (req, res) => {
   const driver = await DriverModel.findOne({ _id: req.body.driverId });
   const passenger = await UserModel.findOne({ _id: req.body.userId });
+  const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
   const ride = await RideModel.create({
     pickup: req.body.pickup,
     dropoff: req.body.dropoff,
     driver: driver._id,
     date: req.body.date,
     time: req.body.time,
+    otp: otp,
     passenger: passenger._id,
   });
   io.to(driver.socketId).emit("ride:alert", {
@@ -288,7 +291,7 @@ export const BookRide = async (req, res) => {
   });
   res
     .status(201)
-    .json({ status: "success", message: "Ride booked", rideId: ride._id });
+    .json({ status: "success", message: "Ride booked", rideId: ride._id, otp: otp });
 };
 
 // api function to update ride status
