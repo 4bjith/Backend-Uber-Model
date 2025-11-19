@@ -56,6 +56,7 @@ export const io = new Server(server, {
 app.use(AuthRoute);
 app.use(DriverRoute);
 
+
 // ✅ Serve static uploads folder
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
@@ -128,15 +129,40 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("driver:location:ridepage", (data) => {
-    const { coordinates } = data;
-    io.emit("driver:location:currentride", coordinates);
+  socket.on("driver:location:update", async (data) => {
+  const { email, coordinates, socketid } = data;
+
+  const { lat, lng } = coordinates;
+
+  await DriverModel.findOneAndUpdate(
+    { email },
+    {
+      socketId: socketid,
+      location: { type: "Point", coordinates: [lng, lat] },
+    }
+  );
+
+  io.emit("driver:location", {
+    email,
+    lat,
+    lng,
   });
+});
+
+
+socket.on("user:location:update", (data) => {
+  io.emit("user:location", {
+    email: data.email,
+    lat: data.coordinates.lat,
+    lng: data.coordinates.lng,
+  });
+});
 });
 
 
 
 // ✅ Start server (with Socket.IO)
+// This line starts the server and listens for incoming requests on the specified port.
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });

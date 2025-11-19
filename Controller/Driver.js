@@ -243,7 +243,7 @@ export const nearby = async (req, res) => {
     }
     const longitude = parseFloat(lng);
     const latitude = parseFloat(lat);
-
+    console.log("Finding drivers near:", longitude, latitude);
     // find driver within 5km radius
     const drivers = await DriverModel.find({
       location: {
