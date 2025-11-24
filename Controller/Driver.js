@@ -273,10 +273,14 @@ export const BookRide = async (req, res) => {
   const driver = await DriverModel.findOne({ _id: req.body.driverId });
   const passenger = await UserModel.findOne({ _id: req.body.userId });
   const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  console.log("dropoff coordinates:", req.body.dropoffCoordinates);
+  console.log("pickup coordinates:", req.body.pickupCoordinates);
 
   const ride = await RideModel.create({
     pickup: req.body.pickup,
     dropoff: req.body.dropoff,
+    pickupCoordinates: { type: "Point", coordinates: req.body.pickupCoordinates },
+    dropoffCoordinates: { type: "Point", coordinates: req.body.dropoffCoordinates },
     driver: driver._id,
     date: req.body.date,
     time: req.body.time,
