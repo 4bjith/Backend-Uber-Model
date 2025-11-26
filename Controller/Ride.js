@@ -1,4 +1,5 @@
 import RideModel from "../Model/Ride.js";
+import { io } from "../index.js";
 
 export const getRide = async (req, res) => {
   try {
@@ -106,7 +107,10 @@ export const endRide = async (req, res) => {
     if (!ride) {
       return res.status(404).json({ message: "Ride not found" });
     }
-
+    io.emit("ride:end", {
+      rideId,
+      status: "completed",
+    });
     return res.status(200).json({
       message: "Ride ended successfully",
       data: ride,
