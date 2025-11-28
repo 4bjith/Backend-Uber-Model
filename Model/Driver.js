@@ -15,6 +15,7 @@ const DriverSchema = new mongoose.Schema({
   role: { type: String, default: "driver" },
   socketId: { type: String, default: null },
   status: {type: String, enum:["offline","online"], default: "offline"},
+  ratePerKm: { type: Number, default: 20 },
   location: {
     type: {
       type: String,

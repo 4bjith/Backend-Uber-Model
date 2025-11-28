@@ -39,6 +39,7 @@ const RideSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now },
   time: { type: String, required: true },
   otp: { type: String },
+  distance: { type: String },
   status: {
     type: String,
     enum: ["requested", "accepted", "in_progress", "completed", "cancelled"],
@@ -46,6 +47,7 @@ const RideSchema = new mongoose.Schema({
   },
   requestedAt: { type: Date, default: Date.now },
   completedAt: { type: Date },
+  earnings: { type: Number },
 });
 
 const RideModel = mongoose.model("ride", RideSchema);

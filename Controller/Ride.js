@@ -1,9 +1,11 @@
 import RideModel from "../Model/Ride.js";
+import DriverModel from "../Model/Driver.js";
 import { io } from "../index.js";
+import e from "cors";
 
 export const getRide = async (req, res) => {
   try {
-    const { rideId } = req.query;   // ← CHANGE HERE
+    const { rideId } = req.query;
 
     console.log("Ride ID:", rideId);
 
@@ -12,9 +14,9 @@ export const getRide = async (req, res) => {
     }
 
     const ride = await RideModel.findById(rideId)
-      .populate("driver")     // populate driver details
-      .populate("passenger");      // populate user details
- 
+      .populate("driver") // populate driver details
+      .populate("passenger"); // populate user details
+
     if (!ride) {
       return res.status(404).json({ message: "No ride found" });
     }
@@ -23,13 +25,11 @@ export const getRide = async (req, res) => {
       message: "Ride details fetched successfully",
       data: ride,
     });
-
   } catch (err) {
     console.error("Error fetching ride:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
-
 
 // Haversine distance calculator (in meters)
 function getDistanceMeters(lat1, lon1, lat2, lon2) {
@@ -39,8 +39,8 @@ function getDistanceMeters(lat1, lon1, lat2, lon2) {
 
   const a =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) *
-      Math.cos(lat2 * Math.PI / 180) *
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
       Math.sin(dLon / 2) ** 2;
 
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
@@ -94,16 +94,18 @@ export const getRideDistance = async (req, res) => {
 
 export const endRide = async (req, res) => {
   try {
-    const { rideId } = req.body;  
+    const { rideId } = req.body;
     if (!rideId) {
       return res.status(400).json({ message: "rideId is missing" });
-    } 
+    }
 
     const ride = await RideModel.findByIdAndUpdate(
       rideId,
-      { status: "completed" },
+      { status: "completed",
+        completedAt: new Date(),
+       },
       { new: true }
-    );  
+    );
     if (!ride) {
       return res.status(404).json({ message: "Ride not found" });
     }
@@ -117,6 +119,40 @@ export const endRide = async (req, res) => {
     });
   } catch (err) {
     console.error("Error ending ride:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getAllRides = async (req, res) => {
+  const { limit, pages } = req.query;
+  try {
+    const driverEmail = req.user?.email;
+
+    if (!driverEmail) {
+      return res.status(400).json({ message: "driverEmail is missing" });
+    }
+    const driverId = await DriverModel.findOne({ email: driverEmail }).select(
+      "_id"
+    );
+    let rides;
+    // Sort by newest first
+    if (limit ) {
+      rides = await RideModel.find({ driver: driverId }).populate("passenger")
+        .sort({ createdAt: -1 })
+        .skip(pages ? (parseInt(pages) - 1) * parseInt(limit) : 0)
+        .limit(parseInt(limit));
+    } else {
+      rides = await RideModel.find({ driver: driverId }).populate("passenger").sort({
+        createdAt: -1,
+      });
+    }
+    return res.status(200).json({
+      message: "Rides fetched successfully",
+      data: rides,
+      rideCount: rides.length,
+    });
+  } catch (err) {
+    console.error("Error fetching all rides:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

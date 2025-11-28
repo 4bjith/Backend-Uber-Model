@@ -95,24 +95,24 @@ export const SignIn = async (req, res) => {
 };
 
 // api function to signOut 
-export const SignOut = async (req,res) => {
-  try{
+export const SignOut = async (req, res) => {
+  try {
     const email = req.user?.email;
     if (!email) {
       return res
         .status(400)
         .json({ status: "error", message: "Missing email in token" });
     }
-    const driver = await DriverModel.findOne({email});
+    const driver = await DriverModel.findOne({ email });
 
-    if(!driver){
-      return res.status(401).json({status: "error",message: "Cant find the driver in db"})
+    if (!driver) {
+      return res.status(401).json({ status: "error", message: "Cant find the driver in db" })
     }
     driver.status = "offline";
     await driver.save();
 
-  }catch{
-      console.error("Error in sining out ", error.message, error.stack);
+  } catch {
+    console.error("Error in sining out ", error.message, error.stack);
     res.status(500).json({ status: "error", message: error.message });
   }
 }
@@ -286,6 +286,8 @@ export const BookRide = async (req, res) => {
     time: req.body.time,
     otp: otp,
     passenger: passenger._id,
+    distance: req.body.distance,
+    earnings: req.body.distance * driver.ratePerKm,
   });
   io.to(driver.socketId).emit("ride:alert", {
     pickup: req.body.pickup,
