@@ -2,6 +2,7 @@ import RideModel from "../Model/Ride.js";
 import DriverModel from "../Model/Driver.js";
 import { io } from "../index.js";
 import e from "cors";
+import UserModel from "../Model/User.js";
 
 export const getRide = async (req, res) => {
   try {
@@ -137,12 +138,46 @@ export const getAllRides = async (req, res) => {
     let rides;
     // Sort by newest first
     if (limit ) {
-      rides = await RideModel.find({ driver: driverId }).populate("passenger")
+      rides = await RideModel.find({ driver: driverId }).populate("passenger", "driver")
         .sort({ createdAt: -1 })
         .skip(pages ? (parseInt(pages) - 1) * parseInt(limit) : 0)
         .limit(parseInt(limit));
     } else {
-      rides = await RideModel.find({ driver: driverId }).populate("passenger").sort({
+      rides = await RideModel.find({ driver: driverId }).populate("passenger", "driver").sort({
+        createdAt: -1,
+      });
+    }
+    return res.status(200).json({
+      message: "Rides fetched successfully",
+      data: rides,
+      rideCount: rides.length,
+    });
+  } catch (err) {
+    console.error("Error fetching all rides:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const UserRides = async (req, res) => {
+  const { limit, pages } = req.query;
+  try {
+    const userEmail = req.user?.email;
+
+    if (!userEmail) {
+      return res.status(400).json({ message: "userEmail is missing" });
+    }
+    const userId = await UserModel.findOne({ email: userEmail }).select(
+      "_id"
+    );
+    let rides;
+    // Sort by newest first
+    if (limit ) {
+      rides = await RideModel.find({ passenger: userId }).populate("driver")
+        .sort({ createdAt: -1 })
+        .skip(pages ? (parseInt(pages) - 1) * parseInt(limit) : 0)
+        .limit(parseInt(limit));
+    } else {
+      rides = await RideModel.find({ passenger: userId }).populate( "driver").sort({
         createdAt: -1,
       });
     }

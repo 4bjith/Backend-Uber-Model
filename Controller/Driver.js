@@ -255,6 +255,7 @@ export const nearby = async (req, res) => {
           $maxDistance: 5000, // 5 km
         },
       },
+      status: "online",
     });
 
     res.status(200).json({
