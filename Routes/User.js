@@ -14,4 +14,8 @@ router.put("/userupdate", LoginCheck, upload.single("profileImg"), updateUser);
 router.get("/users", LoginCheck, viewUser);
 router.put("/location", LoginCheck, UpdateLocation);
 
+router.get("/tockencheck", LoginCheck, (req, res) => {
+    res.status(200).json({ message: "Token is valid", token: req.user });
+});
+
 export default router;
