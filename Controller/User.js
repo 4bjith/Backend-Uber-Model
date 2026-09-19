@@ -73,7 +73,8 @@ export const Login = async (req, res) => {
           console.log("Saved user location:", usr.location);
         }
 
-        const token = jwt.sign({ email: usr.email }, "qwerty", {
+        const JWT_SECRET = process.env.JWT_SECRET || "qwerty";
+        const token = jwt.sign({ email: usr.email, role: "passenger" }, JWT_SECRET, {
           expiresIn: "4h",
         });
         res.json({

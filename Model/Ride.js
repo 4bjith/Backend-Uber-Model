@@ -1,54 +1,74 @@
 import mongoose from "mongoose";
 
-const RideSchema = new mongoose.Schema({
-  driver: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "driver",
-    required: true,
-  },
-  passenger: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "user",
-    required: true,
-  },
-  pickup: { type: String, required: true },
-  pickupCoordinates: {
-    type: {
+const RideSchema = new mongoose.Schema(
+  {
+    driver: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "driver",
+      required: true,
+    },
+    passenger: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "user",
+      required: true,
+    },
+    pickup: { type: String, required: true },
+    pickupCoordinates: {
+      type: {
+        type: String,
+        enum: ["Point"],
+        default: "Point",
+      },
+      coordinates: {
+        type: [Number],
+        default: [0, 0],
+      },
+    },
+    dropoffCoordinates: {
+      type: {
+        type: String,
+        enum: ["Point"],
+        default: "Point",
+      },
+      coordinates: {
+        type: [Number],
+        default: [0, 0],
+      },
+    },
+    dropoff: { type: String, required: true },
+    price: { type: Number },
+    date: { type: Date, default: Date.now },
+    time: { type: String, required: true },
+    otp: { type: String },
+    distance: { type: String },
+    status: {
       type: String,
-      enum: ["Point"],
-      default: "Point",
+      enum: ["requested", "accepted", "in_progress", "completed", "cancelled", "disputed"],
+      default: "requested",
     },
-    coordinates: {
-      type: [Number],
-      default: [0, 0],
-    },
-  },
-  dropoffCoordinates: {
-    type: {
+    requestedAt: { type: Date, default: Date.now },
+    completedAt: { type: Date },
+    earnings: { type: Number },
+    paymentStatus: {
       type: String,
-      enum: ["Point"],
-      default: "Point",
+      enum: ["pending", "paid", "refunded", "failed"],
+      default: "pending",
     },
-    coordinates: {
-      type: [Number],
-      default: [0, 0],
+    paymentMethod: { type: String, default: "CASHFREE" },
+    cashfreeOrderId: { type: String },
+    fareBreakdown: {
+      baseFare: { type: Number, default: 0 },
+      distanceFare: { type: Number, default: 0 },
+      platformFee: { type: Number, default: 0 },
+      driverPayout: { type: Number, default: 0 },
+      tax: { type: Number, default: 0 },
     },
+    rating: { type: Number },
+    review: { type: String },
+    disputeReason: { type: String },
   },
-  dropoff: { type: String, required: true },
-  price: { type: Number },
-  date: { type: Date, default: Date.now },
-  time: { type: String, required: true },
-  otp: { type: String },
-  distance: { type: String },
-  status: {
-    type: String,
-    enum: ["requested", "accepted", "in_progress", "completed", "cancelled"],
-    default: "requested",
-  },
-  requestedAt: { type: Date, default: Date.now },
-  completedAt: { type: Date },
-  earnings: { type: Number },
-});
+  { timestamps: true }
+);
 
 const RideModel = mongoose.model("ride", RideSchema);
 
