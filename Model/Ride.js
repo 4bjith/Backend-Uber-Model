@@ -70,6 +70,11 @@ const RideSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+RideSchema.index({ cashfreeOrderId: 1 });
+RideSchema.index({ passenger: 1, createdAt: -1 });
+RideSchema.index({ driver: 1, createdAt: -1 });
+RideSchema.index({ status: 1, paymentStatus: 1 });
+
 const RideModel = mongoose.model("ride", RideSchema);
 
 export default RideModel;

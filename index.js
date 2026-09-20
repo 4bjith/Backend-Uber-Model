@@ -70,8 +70,15 @@ mongoose
   .then(() => console.log("✅ MongoDB connected successfully."))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-// ✅ Body Parsing Middleware
-app.use(express.json({ limit: "10mb" }));
+// ✅ Body Parsing Middleware with Raw Body capture for Cashfree Webhooks
+app.use(
+  express.json({
+    limit: "10mb",
+    verify: (req, res, buf) => {
+      req.rawBody = buf.toString();
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(
   cors({
@@ -100,6 +107,7 @@ app.use(AuthRoute);
 app.use(DriverRoute);
 app.use(RideRoute);
 app.use(PaymentRoute);
+app.use("/api/payments", PaymentRoute);
 app.use(AdminRoute);
 
 // Health check endpoint
