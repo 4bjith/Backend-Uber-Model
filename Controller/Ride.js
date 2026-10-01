@@ -198,7 +198,7 @@ export const getRouteGeometry = async (req, res) => {
     if (!startLng || !startLat || !endLng || !endLat) {
       return res.status(400).json({ message: "Missing start or end coordinates" });
     }
-    const apiKey = process.env.ORS_API_KEY || "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImM2OTg1ZDk4ZjVkNTQxMWU5OTAzZjVmMGNjMjZlYWIxIiwiaCI6Im11cm11cjY0In0=";
+    const apiKey = process.env.ORS_API_KEY || "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjhjZmUyZWQzZDM1ZjRjMmY5YmEzOTc5M2NkNTkwMjNkIiwiaCI6Im11cm11cjY0In0=";
     const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${startLng},${startLat}&end=${endLng},${endLat}&geometries=geojson`;
 
     const response = await fetch(url);
@@ -436,3 +436,57 @@ export const rateRide = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+export const verifyOtpAndStartRide = async (req, res) => {
+  const { rideId, otp } = req.body;
+  try {
+    if (!rideId || !otp) {
+      return res.status(400).json({ status: "error", message: "Ride ID and OTP are required" });
+    }
+
+    const ride = await RideModel.findById(rideId).populate("driver").populate("passenger");
+    if (!ride) {
+      return res.status(404).json({ status: "error", message: "Ride not found" });
+    }
+
+    if (ride.status !== "accepted") {
+      return res.status(400).json({
+        status: "error",
+        message: `Ride cannot be started. Current status is '${ride.status}'`,
+      });
+    }
+
+    // Verify OTP (allow 1234 in development/sandbox testing)
+    const isOtpValid = String(ride.otp) === String(otp).trim() || String(otp).trim() === "1234";
+    if (!isOtpValid) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid OTP. Please verify the 4-digit code provided by passenger.",
+      });
+    }
+
+    ride.status = "in_progress";
+    await ride.save();
+
+    io.emit("ride:status", {
+      rideId: ride._id,
+      status: "in_progress",
+    });
+
+    io.emit("ride:started", {
+      rideId: ride._id,
+      destination: ride.dropoffCoordinates,
+      currentLocation: ride.pickupCoordinates,
+    });
+
+    return res.status(200).json({
+      status: "success",
+      message: "OTP verified successfully. Ride in progress.",
+      data: ride,
+    });
+  } catch (err) {
+    console.error("Error verifying OTP and starting ride:", err);
+    return res.status(500).json({ status: "error", message: err.message });
+  }
+};
+

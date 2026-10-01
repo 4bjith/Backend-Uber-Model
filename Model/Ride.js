@@ -5,7 +5,8 @@ const RideSchema = new mongoose.Schema(
     driver: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "driver",
-      required: true,
+      required: false,
+      default: null,
     },
     passenger: {
       type: mongoose.Schema.Types.ObjectId,

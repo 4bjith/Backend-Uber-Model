@@ -585,3 +585,402 @@ export const processRefund = async (req, res) => {
     return res.status(500).json({ status: "error", message: error.message });
   }
 };
+
+/**
+ * 💳 Direct Card Payment (Credit & Debit)
+ * POST /api/payments/pay/card
+ */
+export const initiateCardPayment = async (req, res) => {
+  try {
+    const {
+      orderId,
+      paymentSessionId,
+      cardNumber,
+      cardHolderName,
+      cardExpiryMm,
+      cardExpiryYy,
+      cardCvv,
+      cardType = "CREDIT",
+      saveCard = false,
+    } = req.body;
+
+    if (!paymentSessionId && !orderId) {
+      return res.status(400).json({ status: "error", message: "paymentSessionId or orderId is required" });
+    }
+
+    if (!cardNumber || !cardExpiryMm || !cardExpiryYy || !cardCvv) {
+      return res.status(400).json({ status: "error", message: "All card details are required" });
+    }
+
+    const cleanCard = cardNumber.replace(/\s+/g, "");
+    if (cleanCard.length < 13 || cleanCard.length > 19) {
+      return res.status(400).json({ status: "error", message: "Invalid card number format" });
+    }
+
+    // Call Cashfree Card payment engine
+    const cardResult = await CashfreeService.payWithCard({
+      paymentSessionId: paymentSessionId || orderId,
+      cardNumber: cleanCard,
+      cardHolderName,
+      cardExpiryMm,
+      cardExpiryYy,
+      cardCvv,
+      cardType,
+      saveCard,
+    });
+
+    const paymentChannel = cardType === "DEBIT" ? "DEBIT_CARD" : "CREDIT_CARD";
+    const cardLast4 = cleanCard.slice(-4);
+    const cardNetwork = cardResult?.payment_method?.card?.card_network || "VISA";
+
+    // Update payment record
+    const payment = await PaymentModel.findOne({
+      $or: [{ cashfreeOrderId: orderId }, { paymentSessionId }],
+    });
+
+    if (payment) {
+      payment.paymentChannel = paymentChannel;
+      payment.cardDetails = {
+        cardNetwork,
+        cardLast4,
+        cardIssuer: "Verified Bank",
+        cardType,
+        isSavedCard: !!saveCard,
+      };
+      if (cardResult.payment_status === "SUCCESS") {
+        payment.status = "PAID";
+        payment.paidAt = new Date();
+      }
+      await payment.save();
+
+      // If ride is associated, update ride payment channel
+      if (payment.rideId && payment.status === "PAID") {
+        await RideModel.findByIdAndUpdate(payment.rideId, {
+          paymentStatus: "paid",
+          paymentMethod: paymentChannel,
+        });
+      }
+    }
+
+    // If user requested to save card, add to user profile
+    if (saveCard && req.user?.id) {
+      await UserModel.findByIdAndUpdate(req.user.id, {
+        $push: {
+          savedPaymentMethods: {
+            methodType: "CARD",
+            nickname: `${cardNetwork} •••• ${cardLast4}`,
+            cardNetwork,
+            cardLast4,
+            cardType,
+            expiryMonth: cardExpiryMm,
+            expiryYear: cardExpiryYy,
+          },
+        },
+      });
+    }
+
+    return res.status(200).json({
+      status: "success",
+      message: "Card transaction initiated",
+      data: {
+        paymentChannel,
+        cardNetwork,
+        cardLast4,
+        paymentStatus: cardResult.payment_status || "PENDING",
+        redirectUrl: cardResult.data?.url || `${CASHFREE_CONFIG.frontendUrl}/payment/callback?order_id=${orderId || paymentSessionId}`,
+        isSandbox: CASHFREE_CONFIG.environment === "SANDBOX",
+      },
+    });
+  } catch (error) {
+    console.error("Error in initiateCardPayment:", error);
+    return res.status(500).json({ status: "error", message: error.message || "Failed to process card payment" });
+  }
+};
+
+/**
+ * 📱 Unified UPI Payment (Collect / Intent / Dynamic QR)
+ * POST /api/payments/pay/upi
+ */
+export const initiateUpiPayment = async (req, res) => {
+  try {
+    const { orderId, paymentSessionId, upiId, channel = "collect", amount = 100 } = req.body;
+
+    if (!paymentSessionId && !orderId) {
+      return res.status(400).json({ status: "error", message: "paymentSessionId or orderId is required" });
+    }
+
+    if (channel === "collect" && !upiId) {
+      return res.status(400).json({ status: "error", message: "UPI ID / VPA is required for collect requests" });
+    }
+
+    const upiResult = await CashfreeService.payWithUPI({
+      paymentSessionId: paymentSessionId || orderId,
+      upiId,
+      channel,
+      orderAmount: Number(amount) || 100,
+    });
+
+    const paymentChannel =
+      channel === "qrcode" ? "UPI_QR" : channel === "intent" ? "UPI_INTENT" : "UPI_COLLECT";
+
+    // Update payment record
+    const payment = await PaymentModel.findOne({
+      $or: [{ cashfreeOrderId: orderId }, { paymentSessionId }],
+    });
+
+    if (payment) {
+      payment.paymentChannel = paymentChannel;
+      payment.upiDetails = {
+        vpa: upiId || "user@upi",
+        qrCodeString: upiResult?.data?.payload || upiResult?.data?.qr_code_string,
+      };
+      await payment.save();
+    }
+
+    return res.status(200).json({
+      status: "success",
+      message: `UPI ${channel} initiated successfully`,
+      data: {
+        paymentChannel,
+        channel,
+        upiId,
+        paymentStatus: upiResult.payment_status || "PENDING",
+        qrData: upiResult.data?.payload || upiResult.data?.qr_code_string,
+        intentPayload: upiResult.data?.payload,
+        expiresIn: upiResult.data?.expires_in || 300,
+        isSandbox: CASHFREE_CONFIG.environment === "SANDBOX",
+      },
+    });
+  } catch (error) {
+    console.error("Error in initiateUpiPayment:", error);
+    return res.status(500).json({ status: "error", message: error.message || "Failed to initiate UPI payment" });
+  }
+};
+
+/**
+ * 🏦 Direct NetBanking Payment
+ * POST /api/payments/pay/netbanking
+ */
+export const initiateNetBankingPayment = async (req, res) => {
+  try {
+    const { orderId, paymentSessionId, bankCode } = req.body;
+
+    if (!paymentSessionId && !orderId) {
+      return res.status(400).json({ status: "error", message: "paymentSessionId or orderId is required" });
+    }
+
+    if (!bankCode) {
+      return res.status(400).json({ status: "error", message: "NetBanking bank code is required" });
+    }
+
+    const nbResult = await CashfreeService.payWithNetBanking({
+      paymentSessionId: paymentSessionId || orderId,
+      netbankingBankCode: bankCode,
+    });
+
+    // Update payment record
+    const payment = await PaymentModel.findOne({
+      $or: [{ cashfreeOrderId: orderId }, { paymentSessionId }],
+    });
+
+    if (payment) {
+      payment.paymentChannel = "NETBANKING";
+      payment.bankDetails = {
+        bankCode: String(bankCode),
+      };
+      if (nbResult.payment_status === "SUCCESS") {
+        payment.status = "PAID";
+        payment.paidAt = new Date();
+      }
+      await payment.save();
+    }
+
+    return res.status(200).json({
+      status: "success",
+      message: "NetBanking payment link generated",
+      data: {
+        paymentChannel: "NETBANKING",
+        bankCode,
+        paymentStatus: nbResult.payment_status || "PENDING",
+        redirectUrl: nbResult.data?.url || `${CASHFREE_CONFIG.frontendUrl}/payment/callback?order_id=${orderId || paymentSessionId}`,
+        isSandbox: CASHFREE_CONFIG.environment === "SANDBOX",
+      },
+    });
+  } catch (error) {
+    console.error("Error in initiateNetBankingPayment:", error);
+    return res.status(500).json({ status: "error", message: error.message || "Failed to process NetBanking" });
+  }
+};
+
+/**
+ * 🏛 Generate Virtual Account for Bank Transfer (NEFT / IMPS / RTGS)
+ * POST /api/payments/pay/bank-transfer
+ */
+export const generateVirtualAccountPayment = async (req, res) => {
+  try {
+    const { orderId, amount = 500, rideId } = req.body;
+
+    const targetOrderId = orderId || (rideId ? `order_${rideId}_${Date.now()}` : `bt_${Date.now()}`);
+
+    const virtualAccount = await CashfreeService.generateVirtualAccount({
+      orderId: targetOrderId,
+      orderAmount: Number(amount),
+      customerDetails: {
+        customerEmail: req.user?.email,
+        customerName: req.user?.name,
+      },
+    });
+
+    // Update or create payment record
+    let payment = await PaymentModel.findOne({ cashfreeOrderId: targetOrderId });
+    if (!payment) {
+      payment = await PaymentModel.create({
+        userId: req.user?.id || new mongoose.Types.ObjectId(),
+        rideId: rideId || undefined,
+        cashfreeOrderId: targetOrderId,
+        amount: Number(amount),
+        currency: "INR",
+        status: "PENDING",
+        paymentChannel: "BANK_TRANSFER_VAN",
+        gateway: "CASHFREE",
+        bankDetails: {
+          virtualAccountNumber: virtualAccount.virtual_account_number,
+          virtualAccountIfsc: virtualAccount.ifsc,
+          bankName: virtualAccount.bank_name,
+        },
+      });
+    } else {
+      payment.paymentChannel = "BANK_TRANSFER_VAN";
+      payment.bankDetails = {
+        virtualAccountNumber: virtualAccount.virtual_account_number,
+        virtualAccountIfsc: virtualAccount.ifsc,
+        bankName: virtualAccount.bank_name,
+      };
+      await payment.save();
+    }
+
+    return res.status(200).json({
+      status: "success",
+      message: "Virtual account generated for bank transfer",
+      data: virtualAccount,
+    });
+  } catch (error) {
+    console.error("Error in generateVirtualAccountPayment:", error);
+    return res.status(500).json({ status: "error", message: error.message || "Failed to generate virtual account" });
+  }
+};
+
+/**
+ * 🏦 Get Supported Banks List for NetBanking
+ * GET /api/payments/banks
+ */
+export const getBanksList = async (req, res) => {
+  try {
+    const banks = CashfreeService.getPopularBanks();
+    return res.status(200).json({
+      status: "success",
+      data: banks,
+    });
+  } catch (error) {
+    return res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * 💳 User Saved Payment Methods Management
+ * GET /api/payments/user/saved-methods
+ */
+export const getSavedPaymentMethods = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ status: "error", message: "Unauthorized" });
+    }
+
+    const user = await UserModel.findById(userId).select("savedPaymentMethods");
+    return res.status(200).json({
+      status: "success",
+      data: user?.savedPaymentMethods || [],
+    });
+  } catch (error) {
+    return res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * 💾 Save a Payment Method (Card / UPI / Bank)
+ * POST /api/payments/user/saved-methods
+ */
+export const savePaymentMethod = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ status: "error", message: "Unauthorized" });
+    }
+
+    const { methodType, nickname, cardNetwork, cardLast4, cardType, expiryMonth, expiryYear, upiVpa, accountNumberMasked, ifscCode, bankName, isDefault } = req.body;
+
+    if (!methodType) {
+      return res.status(400).json({ status: "error", message: "methodType is required" });
+    }
+
+    const newMethod = {
+      methodType,
+      nickname: nickname || (methodType === "CARD" ? `${cardNetwork} •••• ${cardLast4}` : upiVpa || bankName),
+      cardNetwork,
+      cardLast4,
+      cardType,
+      expiryMonth,
+      expiryYear,
+      upiVpa,
+      accountNumberMasked,
+      ifscCode,
+      bankName,
+      isDefault: !!isDefault,
+    };
+
+    const user = await UserModel.findByIdAndUpdate(
+      userId,
+      { $push: { savedPaymentMethods: newMethod } },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      status: "success",
+      message: "Payment method saved successfully",
+      data: user.savedPaymentMethods,
+    });
+  } catch (error) {
+    return res.status(500).json({ status: "error", message: error.message });
+  }
+};
+
+/**
+ * 🗑 Delete a Saved Payment Method
+ * DELETE /api/payments/user/saved-methods/:methodId
+ */
+export const deleteSavedPaymentMethod = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { methodId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ status: "error", message: "Unauthorized" });
+    }
+
+    const user = await UserModel.findByIdAndUpdate(
+      userId,
+      { $pull: { savedPaymentMethods: { _id: methodId } } },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      status: "success",
+      message: "Saved payment method removed successfully",
+      data: user?.savedPaymentMethods || [],
+    });
+  } catch (error) {
+    return res.status(500).json({ status: "error", message: error.message });
+  }
+};
+

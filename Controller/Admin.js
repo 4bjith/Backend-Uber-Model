@@ -59,8 +59,9 @@ export const getDriversList = async (req, res) => {
 export const updateDriverKyc = async (req, res) => {
   try {
     const { driverId, kycStatus, notes } = req.body;
+    const normalizedKyc = (kycStatus === "approved" || kycStatus === "verified") ? "verified" : kycStatus;
 
-    if (!driverId || !["verified", "rejected", "pending"].includes(kycStatus)) {
+    if (!driverId || !["verified", "rejected", "pending"].includes(normalizedKyc)) {
       return res.status(400).json({
         status: "error",
         message: "Valid driverId and kycStatus ('verified', 'rejected', 'pending') required",

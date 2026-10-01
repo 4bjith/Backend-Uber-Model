@@ -21,6 +21,28 @@ const UserSchema = new mongoose.Schema({
       default: [0, 0],
     },
   },
+  savedPaymentMethods: [
+    {
+      methodType: { type: String, enum: ["CARD", "UPI", "BANK_ACCOUNT"], required: true },
+      nickname: { type: String },
+      // Card fields (Tokenized)
+      cardToken: { type: String },
+      cardNetwork: { type: String, enum: ["VISA", "MASTERCARD", "RUPAY", "AMEX", "DINERS", "OTHER"] },
+      cardLast4: { type: String },
+      cardIssuer: { type: String },
+      cardType: { type: String, enum: ["CREDIT", "DEBIT"] },
+      expiryMonth: { type: String },
+      expiryYear: { type: String },
+      // UPI fields
+      upiVpa: { type: String },
+      // Bank Account fields
+      accountNumberMasked: { type: String },
+      ifscCode: { type: String },
+      bankName: { type: String },
+      isDefault: { type: Boolean, default: false },
+      createdAt: { type: Date, default: Date.now },
+    },
+  ],
 });
 
 // password bcrypting or salting

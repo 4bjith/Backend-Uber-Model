@@ -317,6 +317,7 @@ export const getDriver = async (req, res) => {
 };
 
 // api function to find all drivers nearby
+// api function to find all drivers nearby
 export const nearby = async (req, res) => {
   try {
     const { lat, lng } = req.query;
@@ -325,23 +326,45 @@ export const nearby = async (req, res) => {
         .status(400)
         .json({ status: "error", message: "Missing latitude or longitude" });
     }
-    const longitude = parseFloat(lng);
-    const latitude = parseFloat(lat);
+    let p1 = parseFloat(lat);
+    let p2 = parseFloat(lng);
+    let latitude, longitude;
 
-    // find drivers within 5km radius who are online and KYC verified
-    const drivers = await DriverModel.find({
-      location: {
-        $near: {
-          $geometry: {
-            type: "Point",
-            coordinates: [longitude, latitude],
+    if (Math.abs(p1) > 90 && Math.abs(p2) <= 90) {
+      longitude = p1;
+      latitude = p2;
+    } else {
+      latitude = p1;
+      longitude = p2;
+    }
+
+    // 1. Primary: find drivers within 15km radius who are online and KYC verified
+    let drivers = [];
+    try {
+      drivers = await DriverModel.find({
+        location: {
+          $near: {
+            $geometry: {
+              type: "Point",
+              coordinates: [longitude, latitude],
+            },
+            $maxDistance: 15000, // 15 km
           },
-          $maxDistance: 5000, // 5 km
         },
-      },
-      status: "online",
-      kycStatus: "verified",
-    }).select("-password");
+        status: "online",
+        kycStatus: "verified",
+      }).select("-password");
+    } catch (geoErr) {
+      console.warn("Geospatial nearby query fallback:", geoErr.message);
+    }
+
+    // 2. Fallback: If no drivers within 15km or uncalibrated GPS, return all online verified drivers
+    if (drivers.length === 0) {
+      drivers = await DriverModel.find({
+        status: "online",
+        kycStatus: "verified",
+      }).select("-password");
+    }
 
     res.status(200).json({
       status: "success",
@@ -361,39 +384,82 @@ export const BookRide = async (req, res) => {
       return res.status(404).json({ status: "error", message: "Passenger not found" });
     }
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    const [lat, lng] = req.body.pickupCoordinates;
-    const longitude = parseFloat(lng);
-    const latitude = parseFloat(lat);
+    const p1 = parseFloat(req.body.pickupCoordinates[0]);
+    const p2 = parseFloat(req.body.pickupCoordinates[1]);
+    
+    // Auto-detect coordinate order [lat, lng] vs [lng, lat]
+    let latitude, longitude;
+    if (Math.abs(p1) > 90 && Math.abs(p2) <= 90) {
+      longitude = p1;
+      latitude = p2;
+    } else {
+      latitude = p1;
+      longitude = p2;
+    }
+
     const vehicleType = req.body.vehicleType || "Sedan";
 
-    // Geospatial search for the nearest online and KYC-verified driver of matching vehicleType
-    const drivers = await DriverModel.find({
-      location: {
-        $near: {
-          $geometry: {
-            type: "Point",
-            coordinates: [longitude, latitude],
+    // 1. Tier 1 Search: Online, verified drivers matching vehicleType within 15km
+    let drivers = [];
+    try {
+      drivers = await DriverModel.find({
+        location: {
+          $near: {
+            $geometry: {
+              type: "Point",
+              coordinates: [longitude, latitude],
+            },
+            $maxDistance: 15000, // 15 km
           },
-          $maxDistance: 10000, // 10 km
         },
-      },
-      status: "online",
-      kycStatus: "verified",
-      vehicleType: vehicleType,
-    });
+        status: "online",
+        kycStatus: "verified",
+        vehicleType: new RegExp(`^${vehicleType}$`, "i"),
+      });
+    } catch (geoErr) {
+      console.warn("Geospatial search primary error, proceeding to fallback:", geoErr.message);
+    }
+
+    // 2. Tier 2 Search: Any online, verified drivers within 15km regardless of vehicle tier
+    if (drivers.length === 0) {
+      try {
+        drivers = await DriverModel.find({
+          location: {
+            $near: {
+              $geometry: {
+                type: "Point",
+                coordinates: [longitude, latitude],
+              },
+              $maxDistance: 15000, // 15 km
+            },
+          },
+          status: "online",
+          kycStatus: "verified",
+        });
+      } catch (e) {}
+    }
+
+    // 3. Tier 3 Search: All online, verified drivers across platform (sandbox/development fallback)
+    if (drivers.length === 0) {
+      drivers = await DriverModel.find({
+        status: "online",
+        kycStatus: "verified",
+      });
+    }
 
     if (drivers.length === 0) {
       return res.status(404).json({
         status: "error",
-        message: `No online verified drivers found for vehicle type ${vehicleType} within 10km. Please try another tier or wait.`,
+        message: `No online verified drivers are currently active. Please ensure a driver is logged in and set to Online.`,
       });
     }
 
-    const matchedDriver = drivers[0];
-    const ratePerKm = matchedDriver.ratePerKm || 20;
+    const standardRate = vehicleType === "Bike" ? 10 : vehicleType === "SUV" ? 30 : 20;
+    const ratePerKm = drivers[0]?.ratePerKm || standardRate;
     const distanceNum = parseFloat(req.body.distance) || 1;
     const earnings = Math.round(distanceNum * ratePerKm);
 
+    // Create ride initially unassigned (driver: null) in 'requested' state
     const ride = await RideModel.create({
       pickup: req.body.pickup,
       dropoff: req.body.dropoff,
@@ -402,7 +468,8 @@ export const BookRide = async (req, res) => {
         type: "Point",
         coordinates: [parseFloat(req.body.dropoffCoordinates[0]), parseFloat(req.body.dropoffCoordinates[1])],
       },
-      driver: matchedDriver._id,
+      driver: null,
+      status: "requested",
       date: req.body.date || new Date(),
       time: req.body.time || new Date().toLocaleTimeString(),
       otp: otp,
@@ -417,35 +484,37 @@ export const BookRide = async (req, res) => {
       },
     });
 
-    if (matchedDriver.socketId) {
-      io.to(matchedDriver.socketId).emit("ride:alert", {
-        pickup: req.body.pickup,
-        dropoff: req.body.dropoff,
-        rideId: ride._id,
-        distance: distanceNum,
-        earnings: earnings,
-      });
-    }
+    // Broadcast ride alert to all online matching drivers in the area
+    let broadcastCount = 0;
+    drivers.forEach((d) => {
+      if (d.socketId) {
+        io.to(d.socketId).emit("ride:alert", {
+          pickup: req.body.pickup,
+          dropoff: req.body.dropoff,
+          rideId: ride._id,
+          distance: distanceNum,
+          earnings: earnings,
+          vehicleType,
+          passengerName: passenger.name,
+        });
+        broadcastCount++;
+      }
+    });
 
     res.status(201).json({
       status: "success",
-      message: "Ride booked and driver matched",
+      message: "Ride request broadcasted to nearby drivers",
       rideId: ride._id,
       otp: otp,
-      driver: {
-        _id: matchedDriver._id,
-        name: matchedDriver.name,
-        vehicleName: matchedDriver.vehicleName,
-        vehicle: matchedDriver.vehicle,
-      },
+      broadcastCount: drivers.length,
     });
   } catch (err) {
     console.error("Error booking ride:", err);
-    res.status(500).json({ status: "error", message: "Failed to book and match ride: " + err.message });
+    res.status(500).json({ status: "error", message: "Failed to broadcast ride request: " + err.message });
   }
 };
 
-// api function to update ride status
+// api function to atomically accept ride (Driver claims ride)
 export const updateRideStatus = async (req, res) => {
   const { rideId } = req.body;
   const driverEmail = req.user?.email;
@@ -453,22 +522,55 @@ export const updateRideStatus = async (req, res) => {
     if (!driverEmail) {
       return res.status(400).json({ status: "error", message: "Missing driver email in token" });
     }
-    const ride = await RideModel.findByIdAndUpdate(
-      rideId,
+
+    const driver = await DriverModel.findOne({ email: driverEmail });
+    if (!driver) {
+      return res.status(404).json({ status: "error", message: "Driver profile not found" });
+    }
+
+    // Atomic CAS (Compare-and-Swap): Ensure only the first accepting driver claims the unassigned ride
+    const ride = await RideModel.findOneAndUpdate(
+      { _id: rideId, status: "requested", driver: null },
       {
         status: "accepted",
+        driver: driver._id,
       },
       { new: true }
-    );
+    )
+      .populate("driver")
+      .populate("passenger");
+
     if (!ride) {
-      return res
-        .status(404)
-        .json({ status: "error", message: "Ride not found" });
+      return res.status(409).json({
+        status: "error",
+        message: "This ride has already been accepted by another driver or was cancelled.",
+      });
     }
-    io.emit("ride:status:update", { rideId, status: "accepted", driverEmail });
+
+    // Notify passenger and broadcast update
+    io.emit("ride:status:update", {
+      rideId,
+      status: "accepted",
+      driverEmail,
+      driver: {
+        _id: driver._id,
+        name: driver.name,
+        mobile: driver.mobile,
+        vehicle: driver.vehicle,
+        vehicleName: driver.vehicleName,
+        rating: 4.9,
+      },
+    });
+
+    // Notify other drivers that this ride is claimed so they can auto-dismiss their alert
+    io.emit("ride:taken", {
+      rideId,
+      driverId: driver._id,
+    });
+
     res.status(200).json({
       status: "success",
-      message: "Ride status updated to accepted",
+      message: "Ride accepted successfully",
       ride,
     });
   } catch (err) {
